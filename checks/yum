@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 #
-# Check_MK YUM Plugin - Check for upgradeable packages.
+# Check_MK YUM Plugin - Check for upgradeable packages and reboot required state.
+#
+######################################################
+# 2018-01 Improvements by Christian Wirtz <doc@snowheaven.de>
+# - Perfdata output
+######################################################
+# ToDo
+# - divide output in security patches and normal patches
+# - divide perfdata in security patches and normal patches
+######################################################
 #
 # Copyright 2015, Henri Wahl <h.wahl@ifw-dresden.de>
 #
@@ -30,53 +39,59 @@
 # <<<yum>>>
 # yes
 # 4
-
-
+ 
+ 
 def inventory_yum(checkname, info):
     if len(info) > 0:
         return [(None, None)]
-
+ 
+ 
 # the check function
 def check_yum(_no_item, _no_params, info):
-    level        = 0
-    msg          = ''
+    state        = 0
+    infotext     = ''
     reboot_req   = 'no'
     packages     = -1
-    
+    perfdata     = ''
+ 
     # Parse the agent output
     if len(info) > 0:
         reboot_req   = info[0][0]
         if not reboot_req in ('yes', 'no'):
             reboot_req = ''
-        
+ 
     if len(info) > 1:
         try:
             packages = int(info[1][0])
         except:
             packages = -1
-            
+ 
         if packages < 0:
-            level = 3
-            msg = 'No package information available' + str(packages)
+            state = 3
+            infotext = 'No package information available' + str(packages)
         elif packages > 0:
-            level = 1
+            state = 1
             if packages == 1: s = ''
             else: s = 's'
-            msg = '%s update%s available' % (packages, s) 
-
-    if (reboot_req == "yes") and (level == 0):
-        level = 2 
-        msg = "reboot required"
-
-    if level > 0:
-        return (level, "%s" % msg)
+            infotext = '%s update%s available' % (packages, s)
+ 
+    if (reboot_req == "yes") and (state == 0):
+        state = 2
+        infotext = "reboot required"
+ 
+    # Set perfdata
+    perfdata = [ ( "packages", packages ) ]
+ 
+    if state > 0:
+        yield state, infotext, perfdata
     else:
-        return (level, "All packages are up to date")
-
+        yield state, "All packages are up to date...", perfdata
+ 
+ 
 check_info["yum"] = {
         "check_function"            : check_yum,
         "service_description"       : "YUM",
-        "has_perfdata"              : False,
+        "has_perfdata"              : True,
         "inventory_function"        : inventory_yum,
         "group"                     : "yum",
 }
